@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -10,7 +11,6 @@ local knockbackPower = 30
 local sneezeCount = 0
 local statLabel
 
--- Random sneeze sounds
 local sneezeSoundIds = {
 	"rbxassetid://100080597815253",
 	"rbxassetid://93959552901723"
@@ -31,7 +31,56 @@ local function playSneezeSound()
 	end)
 end
 
--- Green particle splatter
+-- Flu ball attaches to another player and slowly disappears
+local function infectPlayer(ball, hit)
+	if not hit or not hit:IsA("BasePart") then
+		return false
+	end
+
+	local target = hit:FindFirstAncestorOfClass("Model")
+
+	if not target or target == character then
+		return false
+	end
+
+	if not target:FindFirstChildOfClass("Humanoid") then
+		return false
+	end
+
+	ball.CanCollide = false
+	ball.Velocity = Vector3.new(0, 0, 0)
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = ball
+	weld.Part1 = hit
+	weld.Parent = ball
+
+	-- Stays visible longer: 2.5 seconds
+	local tween = TweenService:Create(
+		ball,
+		TweenInfo.new(
+			2.5,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.In
+		),
+		{
+			Size = Vector3.new(0.02, 0.02, 0.02),
+			Transparency = 1
+		}
+	)
+
+	tween:Play()
+
+	task.delay(2.6, function()
+		if ball then
+			ball:Destroy()
+		end
+	end)
+
+	return true
+end
+
+-- Green flu particles
 local function spawnSneezeParticles()
 	local head = character:WaitForChild("Head")
 	local look = humanoidRootPart.CFrame.LookVector
@@ -40,10 +89,11 @@ local function spawnSneezeParticles()
 
 	for i = 1, 18 do
 		local size = math.random(15, 45) / 100
-		local particle = Instance.new("Part")
 
+		local particle = Instance.new("Part")
 		particle.Shape = Enum.PartType.Ball
 		particle.Size = Vector3.new(size, size, size)
+
 		particle.Color = Color3.fromRGB(
 			math.random(50, 90),
 			math.random(160, 210),
@@ -65,12 +115,37 @@ local function spawnSneezeParticles()
 			(look * math.random(15, 35)) +
 			spread * 15
 
-		task.spawn(function()
-			for j = 1, 10 do
-				task.wait(0.05)
-				particle.Transparency = j / 10
+		local infected = false
+		local connection
+
+		connection = particle.Touched:Connect(function(hit)
+			if infected or not particle.Parent then
+				return
 			end
-			particle:Destroy()
+
+			if infectPlayer(particle, hit) then
+				infected = true
+
+				if connection then
+					connection:Disconnect()
+				end
+			end
+		end)
+
+		task.spawn(function()
+			for j = 1, 20 do
+				task.wait(0.05)
+
+				if not particle or not particle.Parent or infected then
+					return
+				end
+
+				particle.Transparency = j / 20
+			end
+
+			if particle and particle.Parent then
+				particle:Destroy()
+			end
 		end)
 	end
 end
@@ -112,7 +187,10 @@ local function fakeSneeze()
 	end
 
 	task.wait(1.5)
-	billboard:Destroy()
+
+	if billboard then
+		billboard:Destroy()
+	end
 end
 
 -- UI
@@ -131,7 +209,6 @@ container.Parent = screenGui
 
 Instance.new("UICorner", container).CornerRadius = UDim.new(0, 18)
 
--- Header
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, -20, 0, 40)
 header.Position = UDim2.new(0, 10, 0, 8)
@@ -139,7 +216,6 @@ header.BackgroundTransparency = 1
 header.Active = true
 header.Parent = container
 
--- Status dot
 local dot = Instance.new("Frame")
 dot.Size = UDim2.new(0, 9, 0, 9)
 dot.Position = UDim2.new(0, 0, 0.5, -4)
@@ -149,7 +225,6 @@ dot.Parent = header
 
 Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
 
--- Title
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0, 100, 0, 22)
 title.Position = UDim2.new(0, 16, 0, 2)
@@ -161,7 +236,6 @@ title.TextXAlignment = Enum.TextXAlignment.Left
 title.Font = Enum.Font.GothamBold
 title.Parent = header
 
--- Subtitle
 local subtitle = Instance.new("TextLabel")
 subtitle.Size = UDim2.new(0, 130, 0, 14)
 subtitle.Position = UDim2.new(0, 16, 0, 23)
@@ -193,7 +267,6 @@ end
 local minimizeButton = topButton("−", -68)
 local closeButton = topButton("×", -32)
 
--- Main sneeze button
 local sneezeButton = Instance.new("TextButton")
 sneezeButton.Size = UDim2.new(1, -20, 0, 52)
 sneezeButton.Position = UDim2.new(0, 10, 0, 53)
@@ -207,7 +280,6 @@ sneezeButton.Parent = container
 
 Instance.new("UICorner", sneezeButton).CornerRadius = UDim.new(0, 14)
 
--- Bottom info panel
 local infoPanel = Instance.new("Frame")
 infoPanel.Size = UDim2.new(1, -20, 0, 58)
 infoPanel.Position = UDim2.new(0, 10, 0, 115)
@@ -217,7 +289,6 @@ infoPanel.Parent = container
 
 Instance.new("UICorner", infoPanel).CornerRadius = UDim.new(0, 13)
 
--- Counter
 local counterTitle = Instance.new("TextLabel")
 counterTitle.Size = UDim2.new(0, 70, 0, 15)
 counterTitle.Position = UDim2.new(0, 12, 0, 7)
@@ -240,7 +311,6 @@ statLabel.TextXAlignment = Enum.TextXAlignment.Left
 statLabel.Font = Enum.Font.GothamBold
 statLabel.Parent = infoPanel
 
--- Divider
 local divider = Instance.new("Frame")
 divider.Size = UDim2.new(0, 1, 0, 38)
 divider.Position = UDim2.new(0, 78, 0, 10)
@@ -248,7 +318,6 @@ divider.BackgroundColor3 = Color3.fromRGB(48, 50, 58)
 divider.BorderSizePixel = 0
 divider.Parent = infoPanel
 
--- Minus
 local minusButton = Instance.new("TextButton")
 minusButton.Size = UDim2.new(0, 30, 0, 36)
 minusButton.Position = UDim2.new(0, 90, 0, 11)
@@ -262,7 +331,6 @@ minusButton.Parent = infoPanel
 
 Instance.new("UICorner", minusButton).CornerRadius = UDim.new(0, 9)
 
--- Power display
 local powerBox = Instance.new("Frame")
 powerBox.Size = UDim2.new(0, 48, 0, 36)
 powerBox.Position = UDim2.new(0, 124, 0, 11)
@@ -288,7 +356,6 @@ powerValue.TextSize = 20
 powerValue.Font = Enum.Font.GothamBold
 powerValue.Parent = powerBox
 
--- Plus
 local plusButton = Instance.new("TextButton")
 plusButton.Size = UDim2.new(0, 30, 0, 36)
 plusButton.Position = UDim2.new(1, -40, 0, 11)
@@ -302,32 +369,26 @@ plusButton.Parent = infoPanel
 
 Instance.new("UICorner", plusButton).CornerRadius = UDim.new(0, 9)
 
-local function updatePower()
-	powerValue.Text = tostring(knockbackPower)
-end
-
 sneezeButton.MouseButton1Click:Connect(fakeSneeze)
 
 minusButton.MouseButton1Click:Connect(function()
 	knockbackPower = math.max(5, knockbackPower - 5)
-	updatePower()
+	powerValue.Text = tostring(knockbackPower)
 end)
 
 plusButton.MouseButton1Click:Connect(function()
 	knockbackPower = math.min(150, knockbackPower + 5)
-	updatePower()
+	powerValue.Text = tostring(knockbackPower)
 end)
 
 closeButton.MouseButton1Click:Connect(function()
 	screenGui:Destroy()
 end)
 
--- Minimize
 local minimized = false
 
 minimizeButton.MouseButton1Click:Connect(function()
 	minimized = not minimized
-
 	sneezeButton.Visible = not minimized
 	infoPanel.Visible = not minimized
 
