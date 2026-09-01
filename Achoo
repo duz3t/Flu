@@ -1,0 +1,387 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+local knockbackPower = 30
+local sneezeCount = 0
+local statLabel
+
+-- Random sneeze sounds
+local sneezeSoundIds = {
+	"rbxassetid://100080597815253",
+	"rbxassetid://93959552901723"
+}
+
+local function playSneezeSound()
+	local sound = Instance.new("Sound")
+	sound.SoundId = sneezeSoundIds[math.random(1, #sneezeSoundIds)]
+	sound.Volume = 1
+	sound.PlaybackSpeed = math.random(90, 110) / 100
+	sound.Parent = character:WaitForChild("Head")
+	sound:Play()
+
+	task.delay(4, function()
+		if sound then
+			sound:Destroy()
+		end
+	end)
+end
+
+-- Green particle splatter
+local function spawnSneezeParticles()
+	local head = character:WaitForChild("Head")
+	local look = humanoidRootPart.CFrame.LookVector
+	local right = humanoidRootPart.CFrame.RightVector
+	local up = humanoidRootPart.CFrame.UpVector
+
+	for i = 1, 18 do
+		local size = math.random(15, 45) / 100
+		local particle = Instance.new("Part")
+
+		particle.Shape = Enum.PartType.Ball
+		particle.Size = Vector3.new(size, size, size)
+		particle.Color = Color3.fromRGB(
+			math.random(50, 90),
+			math.random(160, 210),
+			math.random(40, 70)
+		)
+
+		particle.Material = Enum.Material.SmoothPlastic
+		particle.CanCollide = false
+		particle.Anchored = false
+		particle.CastShadow = false
+		particle.CFrame = head.CFrame * CFrame.new(0, -0.3, -1)
+		particle.Parent = workspace
+
+		local spread =
+			(right * math.random(-10, 10) / 10) +
+			(up * math.random(-5, 10) / 10)
+
+		particle.Velocity =
+			(look * math.random(15, 35)) +
+			spread * 15
+
+		task.spawn(function()
+			for j = 1, 10 do
+				task.wait(0.05)
+				particle.Transparency = j / 10
+			end
+			particle:Destroy()
+		end)
+	end
+end
+
+-- Sneeze logic
+local function fakeSneeze()
+	spawnSneezeParticles()
+	playSneezeSound()
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = character:WaitForChild("Head")
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = "ACHOO!"
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeTransparency = 0
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamBold
+	label.Parent = billboard
+
+	local lookVector = humanoidRootPart.CFrame.LookVector
+
+	humanoidRootPart.Velocity =
+		-lookVector * knockbackPower +
+		Vector3.new(0, knockbackPower / 3, 0)
+
+	humanoidRootPart.CFrame =
+		humanoidRootPart.CFrame * CFrame.Angles(0.3, 0, 0)
+
+	sneezeCount += 1
+
+	if statLabel then
+		statLabel.Text = tostring(sneezeCount)
+	end
+
+	task.wait(1.5)
+	billboard:Destroy()
+end
+
+-- UI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FluUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local container = Instance.new("Frame")
+container.Size = UDim2.new(0, 230, 0, 185)
+container.AnchorPoint = Vector2.new(1, 0)
+container.Position = UDim2.new(1, -18, 0, 220)
+container.BackgroundColor3 = Color3.fromRGB(18, 19, 24)
+container.BorderSizePixel = 0
+container.Parent = screenGui
+
+Instance.new("UICorner", container).CornerRadius = UDim.new(0, 18)
+
+-- Header
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, -20, 0, 40)
+header.Position = UDim2.new(0, 10, 0, 8)
+header.BackgroundTransparency = 1
+header.Active = true
+header.Parent = container
+
+-- Status dot
+local dot = Instance.new("Frame")
+dot.Size = UDim2.new(0, 9, 0, 9)
+dot.Position = UDim2.new(0, 0, 0.5, -4)
+dot.BackgroundColor3 = Color3.fromRGB(70, 185, 115)
+dot.BorderSizePixel = 0
+dot.Parent = header
+
+Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(0, 100, 0, 22)
+title.Position = UDim2.new(0, 16, 0, 2)
+title.BackgroundTransparency = 1
+title.Text = "FLU"
+title.TextColor3 = Color3.fromRGB(245, 245, 248)
+title.TextSize = 21
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Font = Enum.Font.GothamBold
+title.Parent = header
+
+-- Subtitle
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(0, 130, 0, 14)
+subtitle.Position = UDim2.new(0, 16, 0, 23)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "SNEEZE CONTROLLER"
+subtitle.TextColor3 = Color3.fromRGB(115, 118, 125)
+subtitle.TextSize = 7
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.Font = Enum.Font.GothamBold
+subtitle.Parent = header
+
+local function topButton(text, x)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0, 30, 0, 30)
+	b.Position = UDim2.new(1, x, 0.5, -15)
+	b.BackgroundColor3 = Color3.fromRGB(35, 37, 45)
+	b.BorderSizePixel = 0
+	b.Text = text
+	b.TextColor3 = Color3.fromRGB(235, 235, 240)
+	b.TextScaled = true
+	b.Font = Enum.Font.GothamBold
+	b.Parent = header
+
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 9)
+
+	return b
+end
+
+local minimizeButton = topButton("−", -68)
+local closeButton = topButton("×", -32)
+
+-- Main sneeze button
+local sneezeButton = Instance.new("TextButton")
+sneezeButton.Size = UDim2.new(1, -20, 0, 52)
+sneezeButton.Position = UDim2.new(0, 10, 0, 53)
+sneezeButton.BackgroundColor3 = Color3.fromRGB(54, 160, 98)
+sneezeButton.BorderSizePixel = 0
+sneezeButton.Text = "SNEEZE"
+sneezeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+sneezeButton.TextSize = 22
+sneezeButton.Font = Enum.Font.GothamBold
+sneezeButton.Parent = container
+
+Instance.new("UICorner", sneezeButton).CornerRadius = UDim.new(0, 14)
+
+-- Bottom info panel
+local infoPanel = Instance.new("Frame")
+infoPanel.Size = UDim2.new(1, -20, 0, 58)
+infoPanel.Position = UDim2.new(0, 10, 0, 115)
+infoPanel.BackgroundColor3 = Color3.fromRGB(28, 30, 37)
+infoPanel.BorderSizePixel = 0
+infoPanel.Parent = container
+
+Instance.new("UICorner", infoPanel).CornerRadius = UDim.new(0, 13)
+
+-- Counter
+local counterTitle = Instance.new("TextLabel")
+counterTitle.Size = UDim2.new(0, 70, 0, 15)
+counterTitle.Position = UDim2.new(0, 12, 0, 7)
+counterTitle.BackgroundTransparency = 1
+counterTitle.Text = "SNEEZES"
+counterTitle.TextColor3 = Color3.fromRGB(130, 133, 142)
+counterTitle.TextSize = 8
+counterTitle.TextXAlignment = Enum.TextXAlignment.Left
+counterTitle.Font = Enum.Font.GothamBold
+counterTitle.Parent = infoPanel
+
+statLabel = Instance.new("TextLabel")
+statLabel.Size = UDim2.new(0, 60, 0, 28)
+statLabel.Position = UDim2.new(0, 12, 0, 20)
+statLabel.BackgroundTransparency = 1
+statLabel.Text = "0"
+statLabel.TextColor3 = Color3.fromRGB(245, 245, 248)
+statLabel.TextSize = 24
+statLabel.TextXAlignment = Enum.TextXAlignment.Left
+statLabel.Font = Enum.Font.GothamBold
+statLabel.Parent = infoPanel
+
+-- Divider
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(0, 1, 0, 38)
+divider.Position = UDim2.new(0, 78, 0, 10)
+divider.BackgroundColor3 = Color3.fromRGB(48, 50, 58)
+divider.BorderSizePixel = 0
+divider.Parent = infoPanel
+
+-- Minus
+local minusButton = Instance.new("TextButton")
+minusButton.Size = UDim2.new(0, 30, 0, 36)
+minusButton.Position = UDim2.new(0, 90, 0, 11)
+minusButton.BackgroundColor3 = Color3.fromRGB(42, 44, 52)
+minusButton.BorderSizePixel = 0
+minusButton.Text = "−"
+minusButton.TextColor3 = Color3.fromRGB(240, 240, 245)
+minusButton.TextSize = 22
+minusButton.Font = Enum.Font.GothamBold
+minusButton.Parent = infoPanel
+
+Instance.new("UICorner", minusButton).CornerRadius = UDim.new(0, 9)
+
+-- Power display
+local powerBox = Instance.new("Frame")
+powerBox.Size = UDim2.new(0, 48, 0, 36)
+powerBox.Position = UDim2.new(0, 124, 0, 11)
+powerBox.BackgroundTransparency = 1
+powerBox.Parent = infoPanel
+
+local powerTitle = Instance.new("TextLabel")
+powerTitle.Size = UDim2.new(1, 0, 0, 13)
+powerTitle.BackgroundTransparency = 1
+powerTitle.Text = "POWER"
+powerTitle.TextColor3 = Color3.fromRGB(120, 123, 132)
+powerTitle.TextSize = 7
+powerTitle.Font = Enum.Font.GothamBold
+powerTitle.Parent = powerBox
+
+local powerValue = Instance.new("TextLabel")
+powerValue.Size = UDim2.new(1, 0, 0, 24)
+powerValue.Position = UDim2.new(0, 0, 0, 12)
+powerValue.BackgroundTransparency = 1
+powerValue.Text = tostring(knockbackPower)
+powerValue.TextColor3 = Color3.fromRGB(255, 255, 255)
+powerValue.TextSize = 20
+powerValue.Font = Enum.Font.GothamBold
+powerValue.Parent = powerBox
+
+-- Plus
+local plusButton = Instance.new("TextButton")
+plusButton.Size = UDim2.new(0, 30, 0, 36)
+plusButton.Position = UDim2.new(1, -40, 0, 11)
+plusButton.BackgroundColor3 = Color3.fromRGB(42, 44, 52)
+plusButton.BorderSizePixel = 0
+plusButton.Text = "+"
+plusButton.TextColor3 = Color3.fromRGB(240, 240, 245)
+plusButton.TextSize = 22
+plusButton.Font = Enum.Font.GothamBold
+plusButton.Parent = infoPanel
+
+Instance.new("UICorner", plusButton).CornerRadius = UDim.new(0, 9)
+
+local function updatePower()
+	powerValue.Text = tostring(knockbackPower)
+end
+
+sneezeButton.MouseButton1Click:Connect(fakeSneeze)
+
+minusButton.MouseButton1Click:Connect(function()
+	knockbackPower = math.max(5, knockbackPower - 5)
+	updatePower()
+end)
+
+plusButton.MouseButton1Click:Connect(function()
+	knockbackPower = math.min(150, knockbackPower + 5)
+	updatePower()
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+-- Minimize
+local minimized = false
+
+minimizeButton.MouseButton1Click:Connect(function()
+	minimized = not minimized
+
+	sneezeButton.Visible = not minimized
+	infoPanel.Visible = not minimized
+
+	if minimized then
+		container.Size = UDim2.new(0, 230, 0, 52)
+		minimizeButton.Text = "+"
+	else
+		container.Size = UDim2.new(0, 230, 0, 185)
+		minimizeButton.Text = "−"
+	end
+end)
+
+-- Dragging
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+	local delta = input.Position - dragStart
+
+	container.Position = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+end
+
+header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = true
+		dragStart = input.Position
+		startPos = container.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+header.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		update(input)
+	end
+end)
